@@ -136,6 +136,8 @@ public:
    * \param dataSize The desired size of the final echo data.
    */
   void SetFill (uint8_t *fill, uint32_t fillSize, uint32_t dataSize);
+  
+  void setInfected(bool a);
 
 protected:
   virtual void DoDispose (void);
@@ -163,6 +165,8 @@ private:
    * \param socket the socket the packet was received to.
    */
   void HandleRead (Ptr<Socket> socket);
+  
+  
 
   uint32_t m_count; //!< Maximum number of packets the application will send
   Time m_interval; //!< Packet inter-send time
