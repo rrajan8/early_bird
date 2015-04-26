@@ -79,6 +79,7 @@ WormClient::WormClient ()
   m_sendEvent = EventId ();
   m_data = 0;
   m_dataSize = 0;
+  m_infected = false;
 }
 
 WormClient::~WormClient()
@@ -264,6 +265,11 @@ WormClient::SetFill (uint8_t *fill, uint32_t fillSize, uint32_t dataSize)
   // Overwrite packet size attribute.
   //
   m_size = dataSize;
+}
+
+void WormClient::setInfected(bool a)
+{
+  m_infected = a;
 }
 
 void 
