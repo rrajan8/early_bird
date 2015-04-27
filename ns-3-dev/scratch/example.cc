@@ -24,8 +24,8 @@ using namespace std;
 
 int main (int argc, char **argv)
 {
-	LogComponentEnable("WormClientApplication", LOG_LEVEL_INFO);
-	LogComponentEnable("UdpEchoServerApplication", LOG_LEVEL_INFO);
+	LogComponentEnable("WormClientApplication", LOG_LEVEL_DEBUG);
+	//LogComponentEnable("UdpEchoServerApplication", LOG_LEVEL_INFO);
 	//WormClient::init_URV();
 	// Random number generator between 0 and 0.1
 	RngSeedManager::SetSeed (11223344);
@@ -33,12 +33,12 @@ int main (int argc, char **argv)
 	U->SetAttribute ("Stream", IntegerValue (6110));
 	U->SetAttribute ("Min", DoubleValue (0.0));
 	U->SetAttribute ("Max", DoubleValue (0.1));	
+	
 	Ptr<UniformRandomVariable> U_worm = CreateObject<UniformRandomVariable> ();
-	U->SetAttribute ("Stream", IntegerValue (6110));
-	U->SetAttribute ("Min", DoubleValue (0.0));
-	U->SetAttribute ("Max", DoubleValue (10));	
-	// Parse command arguments for number of flows, segment sizes, queue length, and max 
-	// receiver window size
+	U_worm->SetAttribute ("Stream", IntegerValue (6110));
+	U_worm->SetAttribute ("Min", DoubleValue (0.0));
+	U_worm->SetAttribute ("Max", DoubleValue (100));	
+	
 	uint32_t nFlows = 2, segSize = 512, queueSize = 64000, windowSize = 2000;
 	// CommandLine cmd;
 	// cmd.AddValue ("nFlows", "Number of TCP flows", nFlows);
@@ -56,7 +56,9 @@ int main (int argc, char **argv)
 	Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue (segSize));
 	Config::SetDefault ("ns3::DropTailQueue::MaxBytes", UintegerValue (queueSize)); 
 	Config::SetDefault ("ns3::DropTailQueue::Mode", StringValue ("QUEUE_MODE_BYTES"));
-	Config::SetDefault ("ns3::WormClient::MaxPackets", UintegerValue(4));
+	//Config::SetDefault ("ns3::WormClient::MaxPackets", UintegerValue(1000));
+	Config::SetDefault ("ns3::WormClient::mask", UintegerValue(0));
+	Config::SetDefault ("ns3::WormClient::Interval", TimeValue(Seconds(0.1)));
 
 	// Build dumbbell topology
 	PointToPointHelper p2pLeaf, p2pNeck;

@@ -46,6 +46,7 @@ public:
    * \return the object TypeId
    */
   Ptr<UniformRandomVariable> URV ;
+  static uint32_t num_infected;
   void setURV(Ptr<UniformRandomVariable> U){
     URV=U;
   }
@@ -148,6 +149,7 @@ public:
 protected:
   virtual void DoDispose (void);
 
+
 private:
 
   virtual void StartApplication (void);
@@ -171,6 +173,8 @@ private:
    * \param socket the socket the packet was received to.
    */
   void HandleRead (Ptr<Socket> socket);
+
+  Ipv4Address genIP();
   
   
 
@@ -179,6 +183,7 @@ private:
   uint32_t m_size; //!< Size of the sent packet
 
   uint32_t m_dataSize; //!< packet payload size (must be equal to m_size)
+  uint32_t m_mask;
   uint8_t *m_data; //!< packet payload data
   bool m_infected;
   Address m_local;
@@ -188,6 +193,7 @@ private:
   Address m_peerAddress; //!< Remote peer address
   uint16_t m_peerPort; //!< Remote peer port
   EventId m_sendEvent; //!< Event to send the next packet
+  
 
 
   /// Callbacks for tracing the packet Tx events

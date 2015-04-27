@@ -39,6 +39,14 @@ WormClientHelper::WormClientHelper (Ipv4Address address, uint16_t port)
   SetAttribute ("RemotePort", UintegerValue (port));
 }
 
+WormClientHelper::WormClientHelper (Ipv4Address address, uint16_t port, uint16_t mask)
+{
+  m_factory.SetTypeId (WormClient::GetTypeId ());
+  SetAttribute ("RemoteAddress", AddressValue (Address(address)));
+  SetAttribute ("RemotePort", UintegerValue (port));
+  SetAttribute ("mask", UintegerValue(mask));
+}
+
 WormClientHelper::WormClientHelper (Ipv6Address address, uint16_t port)
 {
   m_factory.SetTypeId (WormClient::GetTypeId ());

@@ -34,11 +34,14 @@
 #include <cstdio>
 #include <stdlib.h>
 #include <string>
+#include <sstream>
 
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("WormClientApplication");
 NS_OBJECT_ENSURE_REGISTERED (WormClient);
+
+uint32_t WormClient::num_infected = 0;
 
 TypeId
 WormClient::GetTypeId (void)
@@ -70,6 +73,10 @@ WormClient::GetTypeId (void)
                    UintegerValue (100),
                    MakeUintegerAccessor (&WormClient::SetDataSize,
                                          &WormClient::GetDataSize),
+                   MakeUintegerChecker<uint32_t> ())
+    .AddAttribute ("mask", "Range to scan",
+                   UintegerValue (0),
+                   MakeUintegerAccessor (&WormClient::m_mask),
                    MakeUintegerChecker<uint32_t> ())
     .AddTraceSource ("Tx", "A new packet is created and is sent",
                      MakeTraceSourceAccessor (&WormClient::m_txTrace))
@@ -294,6 +301,8 @@ WormClient::SetFill (uint8_t *fill, uint32_t fillSize, uint32_t dataSize)
 void WormClient::setInfected(bool a)
 {
   m_infected = a;
+  num_infected++;
+  NS_LOG_INFO("number of infected nodes: " << m_infected);
 }
 
 void 
@@ -338,10 +347,9 @@ WormClient::Send (void)
   // so that tags added to the packet can be sent as well
   m_txTrace (p);
   //printf("sending pkts\n");
-  std::string range= "10.2.2.";
-  std::string rand_address = range + std::to_string(URV->GetInteger());
-  std::cout << "Random Address used :" << rand_address << std::endl;
-  m_socket->Connect (InetSocketAddress(rand_address.c_str(), m_peerPort));
+  Ipv4Address dest = genIP();
+  //std::cout << "Random Address used :" << dest << std::endl;
+  m_socket->Connect (InetSocketAddress(dest, m_peerPort));
   int error = m_socket->Send (p);
 
   NS_LOG_INFO("send error code " << error);
@@ -351,7 +359,7 @@ WormClient::Send (void)
   if (Ipv4Address::IsMatchingType (m_peerAddress))
     {
       NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s client sent " << m_size << " bytes to " <<
-                   rand_address << " port " << m_peerPort);
+                   dest << " port " << m_peerPort);
     }
   else if (Ipv6Address::IsMatchingType (m_peerAddress))
     {
@@ -359,52 +367,93 @@ WormClient::Send (void)
                    Ipv6Address::ConvertFrom (m_peerAddress) << " port " << m_peerPort);
     }
 
-  if (m_sent < m_count) 
-    {
+  //if (m_sent < m_count) 
+    //{
       ScheduleTransmit (m_interval);
-    }
+    //}
 }
 
-void
-WormClient::HandleRead (Ptr<Socket> socket)
-{
-  NS_LOG_FUNCTION (this << socket);
-  Ptr<Packet> packet;
-  Address from;
-  if(!m_infected){
-    m_infected = true;
-    printf("I am now infected :D\n");
-    ScheduleTransmit (m_interval);
+  void
+  WormClient::HandleRead (Ptr<Socket> socket)
+  {
+    NS_LOG_FUNCTION (this << socket);
+    Ptr<Packet> packet;
+    Address from;
+    if(!m_infected){
+      m_infected = true;
+      num_infected++;
+      NS_LOG_DEBUG("At time " << Simulator::Now ().GetSeconds () << " infected nodes: " << num_infected);
+      
+      ScheduleTransmit (m_interval);
+      return;
+    }
+    else {
+      NS_LOG_INFO("I am already infected :c");
+      return;
+    }
+    
+    
+    
+    // Here we check if it's a UDP or TCP worm
+    
+    while ((packet = socket->RecvFrom (from)))
+      {
+        if (InetSocketAddress::IsMatchingType (from))
+          {
+            NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s client received " << packet->GetSize () << " bytes from " <<
+                         InetSocketAddress::ConvertFrom (from).GetIpv4 () << " port " <<
+                         InetSocketAddress::ConvertFrom (from).GetPort ());
+          }
+        else if (Inet6SocketAddress::IsMatchingType (from))
+          {
+            NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s client received " << packet->GetSize () << " bytes from " <<
+                         Inet6SocketAddress::ConvertFrom (from).GetIpv6 () << " port " <<
+                         Inet6SocketAddress::ConvertFrom (from).GetPort ());
+          }
+
+        //packet->RemoveAllPacketTags ();
+        //packet->RemoveAllByteTags ();
+
+        //NS_LOG_LOGIC ("Echoing packet");
+        //socket->SendTo (packet, 0, from);
+      }
   }
-  else {
-    printf("I am already infected :c\n");
-  }
-  
-  
-  
-  // Here we check if it's a UDP or TCP worm
-  
-  while ((packet = socket->RecvFrom (from)))
+
+  Ipv4Address WormClient::genIP()
+  {
+    std::string temp;
+    std::stringstream ss;
+    ss << Ipv4Address::ConvertFrom (m_peerAddress);
+    ss >> temp;
+
+    
+    std::string address = "";
+    
+    int t[4];
+    char * pch;
+    pch = strtok (const_cast<char*>(temp.c_str()),".");
+    int i = 3;
+    while (pch != NULL)
     {
-      if (InetSocketAddress::IsMatchingType (from))
-        {
-          NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s client received " << packet->GetSize () << " bytes from " <<
-                       InetSocketAddress::ConvertFrom (from).GetIpv4 () << " port " <<
-                       InetSocketAddress::ConvertFrom (from).GetPort ());
-        }
-      else if (Inet6SocketAddress::IsMatchingType (from))
-        {
-          NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s client received " << packet->GetSize () << " bytes from " <<
-                       Inet6SocketAddress::ConvertFrom (from).GetIpv6 () << " port " <<
-                       Inet6SocketAddress::ConvertFrom (from).GetPort ());
-        }
-
-      //packet->RemoveAllPacketTags ();
-      //packet->RemoveAllByteTags ();
-
-      //NS_LOG_LOGIC ("Echoing packet");
-      //socket->SendTo (packet, 0, from);
+      t[i] = atoi(pch);
+      pch = strtok (NULL, ".");
+      i--;
     }
-}
+    
+    switch(m_mask)
+    {
+      case 3:
+        t[3] = URV->GetInteger();
+      case 2:
+        t[2] = URV->GetInteger();
+      case 1:
+        t[1] = URV->GetInteger();
+      case 0:
+        t[0] = URV->GetInteger();
+        address = std::to_string(t[3]) + "."+std::to_string(t[2]) + "."+std::to_string(t[1]) + "."+std::to_string(t[0]);
+        break;
+    }
+    return Ipv4Address(address.c_str());
+  }
 
 } // Namespace ns3

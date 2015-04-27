@@ -51,6 +51,7 @@ public:
    * \param port The port number of the remote udp echo server
    */
   WormClientHelper (Ipv4Address ip, uint16_t port);
+  WormClientHelper (Ipv4Address address, uint16_t port, uint16_t mask);
   /**
    * Create WormClientHelper which will make life easier for people trying
    * to set up simulations with echos.
