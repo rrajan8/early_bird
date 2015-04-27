@@ -24,6 +24,7 @@
 #include "ns3/ptr.h"
 #include "ns3/ipv4-address.h"
 #include "ns3/traced-callback.h"
+#include <stdlib.h>
 
 namespace ns3 {
 
@@ -48,8 +49,6 @@ public:
   WormClient ();
 
   virtual ~WormClient ();
-  
-  void setInfected(bool a);
 
   /**
    * \brief set the remote address and port
