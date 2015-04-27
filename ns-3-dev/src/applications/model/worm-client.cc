@@ -31,6 +31,9 @@
 #include "ns3/trace-source-accessor.h"
 #include "worm-client.h"
 #include <stdio.h>
+#include <cstdio>
+#include <stdlib.h>
+#include <string>
 
 namespace ns3 {
 
@@ -83,6 +86,7 @@ WormClient::WormClient ()
   m_data = 0;
   m_dataSize = 0;
   m_infected = false;
+
 }
 
 WormClient::~WormClient()
@@ -137,7 +141,7 @@ WormClient::StartApplication (void)
       m_socket = Socket::CreateSocket (GetNode (), tid);
       InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_peerPort);
       m_socket->Bind (local);
-
+      
       if (addressUtils::IsMulticast (m_local))
         {
           Ptr<UdpSocket> udpSocket = DynamicCast<UdpSocket> (m_socket);
@@ -165,8 +169,8 @@ WormClient::StartApplication (void)
     }
 
   m_socket->SetRecvCallback (MakeCallback (&WormClient::HandleRead, this));
-
-  ScheduleTransmit (Seconds (0.));
+  if(m_infected)
+    ScheduleTransmit (Seconds (0.));
 }
 
 void 
@@ -334,14 +338,20 @@ WormClient::Send (void)
   // so that tags added to the packet can be sent as well
   m_txTrace (p);
   //printf("sending pkts\n");
-  m_socket->SendTo (p,0,m_peerAddress);
+  std::string range= "10.2.2.";
+  std::string rand_address = range + std::to_string(URV->GetInteger());
+  std::cout << "Random Address used :" << rand_address << std::endl;
+  m_socket->Connect (InetSocketAddress(rand_address.c_str(), m_peerPort));
+  int error = m_socket->Send (p);
+
+  NS_LOG_INFO("send error code " << error);
 
   ++m_sent;
 
   if (Ipv4Address::IsMatchingType (m_peerAddress))
     {
       NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s client sent " << m_size << " bytes to " <<
-                   Ipv4Address::ConvertFrom (m_peerAddress) << " port " << m_peerPort);
+                   rand_address << " port " << m_peerPort);
     }
   else if (Ipv6Address::IsMatchingType (m_peerAddress))
     {
@@ -361,13 +371,16 @@ WormClient::HandleRead (Ptr<Socket> socket)
   NS_LOG_FUNCTION (this << socket);
   Ptr<Packet> packet;
   Address from;
-  if(m_infected){
+  if(!m_infected){
+    m_infected = true;
+    printf("I am now infected :D\n");
+    ScheduleTransmit (m_interval);
+  }
+  else {
     printf("I am already infected :c\n");
-    return;
   }
   
-  m_infected = true;
-  printf("I am now infected :D\n");
+  
   
   // Here we check if it's a UDP or TCP worm
   
@@ -386,11 +399,11 @@ WormClient::HandleRead (Ptr<Socket> socket)
                        Inet6SocketAddress::ConvertFrom (from).GetPort ());
         }
 
-      packet->RemoveAllPacketTags ();
-      packet->RemoveAllByteTags ();
+      //packet->RemoveAllPacketTags ();
+      //packet->RemoveAllByteTags ();
 
-      NS_LOG_LOGIC ("Echoing packet");
-      socket->SendTo (packet, 0, from);
+      //NS_LOG_LOGIC ("Echoing packet");
+      //socket->SendTo (packet, 0, from);
     }
 }
 

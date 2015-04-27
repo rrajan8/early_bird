@@ -19,6 +19,7 @@
 #ifndef WORM_CLIENT_H
 #define WORM_CLIENT_H
 
+#include "ns3/core-module.h"
 #include "ns3/application.h"
 #include "ns3/event-id.h"
 #include "ns3/ptr.h"
@@ -44,6 +45,10 @@ public:
    * \brief Get the type ID.
    * \return the object TypeId
    */
+  Ptr<UniformRandomVariable> URV ;
+  void setURV(Ptr<UniformRandomVariable> U){
+    URV=U;
+  }
   static TypeId GetTypeId (void);
 
   WormClient ();
@@ -183,6 +188,7 @@ private:
   Address m_peerAddress; //!< Remote peer address
   uint16_t m_peerPort; //!< Remote peer port
   EventId m_sendEvent; //!< Event to send the next packet
+
 
   /// Callbacks for tracing the packet Tx events
   TracedCallback<Ptr<const Packet> > m_txTrace;
