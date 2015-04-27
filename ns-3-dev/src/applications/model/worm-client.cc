@@ -18,16 +18,19 @@
 #include "ns3/log.h"
 #include "ns3/ipv4-address.h"
 #include "ns3/ipv6-address.h"
+#include "ns3/address-utils.h"
 #include "ns3/nstime.h"
 #include "ns3/inet-socket-address.h"
 #include "ns3/inet6-socket-address.h"
 #include "ns3/socket.h"
+#include "ns3/udp-socket.h"
 #include "ns3/simulator.h"
 #include "ns3/socket-factory.h"
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
 #include "ns3/trace-source-accessor.h"
 #include "worm-client.h"
+#include <stdio.h>
 
 namespace ns3 {
 
@@ -127,21 +130,38 @@ void
 WormClient::StartApplication (void)
 {
   NS_LOG_FUNCTION (this);
-
+  //printf("starting worm\n");
   if (m_socket == 0)
     {
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
       m_socket = Socket::CreateSocket (GetNode (), tid);
-      if (Ipv4Address::IsMatchingType(m_peerAddress) == true)
+      InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_peerPort);
+      m_socket->Bind (local);
+
+      if (addressUtils::IsMulticast (m_local))
         {
-          m_socket->Bind();
-          m_socket->Connect (InetSocketAddress (Ipv4Address::ConvertFrom(m_peerAddress), m_peerPort));
+          Ptr<UdpSocket> udpSocket = DynamicCast<UdpSocket> (m_socket);
+          if (udpSocket)
+            {
+              // equivalent to setsockopt (MCAST_JOIN_GROUP)
+              udpSocket->MulticastJoinGroup (0, m_local);
+            }
+          else
+            {
+              NS_FATAL_ERROR ("Error: Failed to join multicast group");
+            }
         }
-      else if (Ipv6Address::IsMatchingType(m_peerAddress) == true)
-        {
-          m_socket->Bind6();
-          m_socket->Connect (Inet6SocketAddress (Ipv6Address::ConvertFrom(m_peerAddress), m_peerPort));
-        }
+
+      // if (Ipv4Address::IsMatchingType(m_peerAddress) == true)
+      //   {
+      //     m_socket->Bind();
+      //     m_socket->Connect (InetSocketAddress (Ipv4Address::ConvertFrom(m_peerAddress), m_peerPort));
+      //   }
+      // else if (Ipv6Address::IsMatchingType(m_peerAddress) == true)
+      //   {
+      //     m_socket->Bind6();
+      //     m_socket->Connect (Inet6SocketAddress (Ipv6Address::ConvertFrom(m_peerAddress), m_peerPort));
+      //   }
     }
 
   m_socket->SetRecvCallback (MakeCallback (&WormClient::HandleRead, this));
@@ -313,7 +333,8 @@ WormClient::Send (void)
   // call to the trace sinks before the packet is actually sent,
   // so that tags added to the packet can be sent as well
   m_txTrace (p);
-  m_socket->Send (p);
+  //printf("sending pkts\n");
+  m_socket->SendTo (p,0,m_peerAddress);
 
   ++m_sent;
 
@@ -340,12 +361,12 @@ WormClient::HandleRead (Ptr<Socket> socket)
   NS_LOG_FUNCTION (this << socket);
   Ptr<Packet> packet;
   Address from;
-  if(infected){
+  if(m_infected){
     printf("I am already infected :c\n");
     return;
   }
   
-  infected = true;
+  m_infected = true;
   printf("I am now infected :D\n");
   
   // Here we check if it's a UDP or TCP worm
@@ -364,6 +385,12 @@ WormClient::HandleRead (Ptr<Socket> socket)
                        Inet6SocketAddress::ConvertFrom (from).GetIpv6 () << " port " <<
                        Inet6SocketAddress::ConvertFrom (from).GetPort ());
         }
+
+      packet->RemoveAllPacketTags ();
+      packet->RemoveAllByteTags ();
+
+      NS_LOG_LOGIC ("Echoing packet");
+      socket->SendTo (packet, 0, from);
     }
 }
 

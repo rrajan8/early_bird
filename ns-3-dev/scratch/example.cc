@@ -20,8 +20,11 @@
 using namespace ns3;
 using namespace std;
 
+
+
 int main (int argc, char **argv)
 {
+	LogComponentEnable("WormClientApplication", LOG_LEVEL_INFO);
 	// Random number generator between 0 and 0.1
 	RngSeedManager::SetSeed (11223344);
 	Ptr<UniformRandomVariable> U = CreateObject<UniformRandomVariable> ();
@@ -80,18 +83,19 @@ int main (int argc, char **argv)
 
 	for (uint32_t i = 0; i < nFlows; ++i) {
 		WormClientHelper src ( dumbbell.GetRightIpv4Address (i), port);
-		src.SetAttribute ("MaxBytes", UintegerValue (0));
-		src.SetAttribute ("SendSize", UintegerValue (512));  		
+		//src.SetAttribute ("MaxBytes", UintegerValue (0));
+		//src.SetAttribute ("SendSize", UintegerValue (512));  		
 		ApplicationContainer srca = src.Install (dumbbell.GetLeft (i));
 		timeStarts.push_back (U->GetValue ());
 		srca.Start (Seconds (timeStarts.back ()));
 		sourceApps.Add (srca);
 	}
 	
-	Ptr<WormClientApplication>(sourceApps.Get(0)).setInfected(true);
+	Ptr<WormClient> sink1 = DynamicCast<WormClient> (sourceApps.Get (0));
+	sink1->setInfected(true);
 
 	for (uint32_t i = 0; i < nFlows; ++i) {
-		WormClientHelper sink (dumbbell.GetLeftIpv4Address (0), port));
+		UdpEchoServerHelper sink (port);
 		ApplicationContainer sinka = sink.Install (dumbbell.GetRight (i));
 		sinka.Start (Seconds (0.0));
 		sinkApps.Add (sinka);

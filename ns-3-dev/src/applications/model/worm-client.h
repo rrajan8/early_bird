@@ -24,7 +24,7 @@
 #include "ns3/ptr.h"
 #include "ns3/ipv4-address.h"
 #include "ns3/traced-callback.h"
-#include <stdlib.h>
+
 
 namespace ns3 {
 
@@ -176,6 +176,7 @@ private:
   uint32_t m_dataSize; //!< packet payload size (must be equal to m_size)
   uint8_t *m_data; //!< packet payload data
   bool m_infected;
+  Address m_local;
 
   uint32_t m_sent; //!< Counter for sent packets
   Ptr<Socket> m_socket; //!< Socket
