@@ -48,6 +48,8 @@ public:
   WormClient ();
 
   virtual ~WormClient ();
+  
+  void setInfected(bool a);
 
   /**
    * \brief set the remote address and port

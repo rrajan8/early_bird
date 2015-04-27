@@ -340,6 +340,16 @@ WormClient::HandleRead (Ptr<Socket> socket)
   NS_LOG_FUNCTION (this << socket);
   Ptr<Packet> packet;
   Address from;
+  if(infected){
+    printf("I am already infected :c\n");
+    return;
+  }
+  
+  infected = true;
+  printf("I am now infected :D\n");
+  
+  // Here we check if it's a UDP or TCP worm
+  
   while ((packet = socket->RecvFrom (from)))
     {
       if (InetSocketAddress::IsMatchingType (from))

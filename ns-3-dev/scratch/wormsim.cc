@@ -6,7 +6,6 @@
 #include <time.h>
 #include <iomanip>
 #include <assert.h>
-
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
 #include "ns3/internet-module.h"
@@ -28,6 +27,7 @@
 #define RT2Z1BW 	 "100Mbps"	//root to zone1 bandwidth
 
 #define SEEDVALUE    11223344
+#define INFECTPER    0.75
 
 
 using namespace ns3;
@@ -45,6 +45,7 @@ int main(int argc, char* argv[])
 	string z2bw = Z22Z3BW;
 	uint32_t seed = SEEDVALUE;
 	double prob = CHILDPROB;
+	double infectper = INFECTPER;
 
 	RngSeedManager::SetSeed (seed);	//seed can be user defined
 	Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
@@ -54,12 +55,14 @@ int main(int argc, char* argv[])
 
 	//printf("here1\n");
 	//create 2 nodes for dept 1 for now...can be changed later as user defined
+	uint32_t num_hosts = 1;
 	vector<NodeContainer> dept1_nodes(2);
 	vector<NodeContainer> dept2_nodes;
 	//printf("here1\n");
 	for (uint32_t i = 0; i < num_root_childs; ++i)
 	{
 			//printf("here2\n");
+		num_hosts++;
 		for (uint32_t j = 0; j < fanoutdept1; ++j)
 		{
 			//printf("here3\n");
@@ -70,6 +73,7 @@ int main(int argc, char* argv[])
 				// Create a fanout node for this tree
 				dept1_nodes[i].Create(1);
 				dept2_nodes.push_back(NodeContainer ());
+				num_hosts++;
 				for (uint32_t k = 0; k < fanoutdept2; ++k)
 				{
 					//printf("here4\n");
@@ -78,12 +82,52 @@ int main(int argc, char* argv[])
 					{
 						// Create a fanout node for this fanout node
 						dept2_nodes[dept2_nodes.size()-1].Create(1);
+						num_hosts++;
 					}
 				}
 	
 			}
 		}
 	}
+
+	//create array of all hosts and find which hosts will be infectable
+
+	 	// CAYLEN
+	//int num_hosts = 10; // Number of hosts
+	//double infectablePer = 0.45; // Fraction of hosts that are infectable
+
+	uint32_t num_infectable = infectper * num_hosts; // Number of infectable hosts
+	cout << "number of hosts = " << num_hosts << endl;
+	cout << "infectable: " << num_infectable << endl;
+
+	// Variable hosts is an array of node indices.
+	uint32_t* hosts = new uint32_t[num_hosts];
+	for (uint32_t i = 0; i < num_hosts; ++i)
+		hosts[i] = i;
+
+	// Indices of infectable hosts are on right portion of the array, starting at 
+	// index = num_hosts-num_infectable. Indices of noninfectable hosts are on left 
+	// portion up to index = num_hosts-num_infectable-1.
+	for (uint32_t i = num_hosts-1; i >= (num_hosts - num_infectable); --i) {
+		uint32_t j = rand() % (i + 1);
+		uint32_t tmp = hosts[i];
+		hosts[i] = hosts[j];
+		hosts[j] = tmp;
+	}
+
+
+	cout << "Noninfectable: ";
+	for (uint32_t i = 0; i < num_hosts-num_infectable; ++i)
+		cout << hosts[i] << " ";
+
+	cout << endl << "Infectable: ";
+	for (uint32_t i = num_hosts-num_infectable; i < num_hosts; ++i)
+		cout << hosts[i] << " ";
+
+	cout << endl;
+
+	// create topology
+
 	//printf("here1\n");
 	NodeContainer topology;
 	NodeContainer d1_nodes;
@@ -121,7 +165,7 @@ int main(int argc, char* argv[])
 
 	//now to install the p2ps and devices
 
-	uint32_t next = 0;
+	uint32_t j_int = 0;
 	for (uint32_t i = 0; i < num_root_childs; ++i)
 	{
 		// Connect the root node to each tree node
@@ -133,13 +177,13 @@ int main(int argc, char* argv[])
 			d1devices.push_back (d1p2p.Install (d1_nodes.Get(i),
 			                                         dept1_nodes[i].Get(j)));
 
-			for (uint32_t k = 0; k < dept2_nodes[next+j].GetN(); ++k)
+			for (uint32_t k = 0; k < dept2_nodes[j_int+j].GetN(); ++k)
 			{
 		  		d2devices.push_back (d2p2p.Install (dept1_nodes[i].Get(j),
-		  									dept2_nodes[next+j].Get(k)));
+		  									dept2_nodes[j_int+j].Get(k)));
 			}
 		}
-		next += dept1_nodes[i].GetN();
+		j_int += dept1_nodes[i].GetN();
 	}
 
 	// Assign IP addresses
@@ -195,11 +239,26 @@ int main(int argc, char* argv[])
     char buffer[255];
 	sprintf(buffer, "%d", 0);
 	anim.UpdateNodeDescription (topology.Get (0), buffer); // Optional
-	anim.UpdateNodeColor (topology.Get (0), 255, 0, 0); // Optional
+	for (uint32_t h = num_hosts-num_infectable; h < num_hosts; h++)
+	{
+		//host[i] are infectable hosts - set those blue
+		if(0 == hosts[h])
+		{
+			//this host infectable
+			anim.UpdateNodeColor (topology.Get(0), 0, 255, 0); // blue - infectable
+			cout << 0 << " infected!" << endl;
+			break;
+		}
+		else
+		{
+			anim.UpdateNodeColor (topology.Get(0), 255, 0, 0); // red - uninfectable
+		}
+	}
+	//anim.UpdateNodeColor (topology.Get (0), 255, 0, 0); // Optional
 	anim.SetConstantPosition (topology.Get(0), 0, 0);
 		
 
-    next = 0;
+    uint32_t j_interval = 0;
     uint32_t z1 = 0;
     uint32_t z2 = 0;
     uint32_t z3 = 0;
@@ -209,7 +268,22 @@ int main(int argc, char* argv[])
     	char buffer1[255];
 		sprintf(buffer1, "%d", a);
 		anim.UpdateNodeDescription (d1_nodes.Get(i), buffer1); // Optional
-		anim.UpdateNodeColor (d1_nodes.Get(i), 255, 0, 0); // Optional
+		for (uint32_t h = num_hosts-num_infectable; h < num_hosts; h++)
+		{
+			//host[i] are infectable hosts - set those blue
+			if(a == hosts[h])
+			{
+				//this host infectable
+				anim.UpdateNodeColor (d1_nodes.Get(i), 0, 255, 0); // blue - infectable
+				cout << a << " infected!" << endl;
+				break;
+			}
+			else
+			{
+				anim.UpdateNodeColor (d1_nodes.Get(i), 255, 0, 0); // red - uninfectable
+			}
+		}
+		//anim.UpdateNodeColor (d1_nodes.Get(i), 255, 0, 0); // red - non infectable
 		anim.SetConstantPosition (d1_nodes.Get(i), z1, 100);
 		z1 += 10;
 		a++;
@@ -218,22 +292,52 @@ int main(int argc, char* argv[])
 	    	char buffer2[255];
 			sprintf(buffer2, "%d", a);
 			anim.UpdateNodeDescription (dept1_nodes[i].Get(j), buffer2); // Optional
-			anim.UpdateNodeColor (dept1_nodes[i].Get(j), 255, 0, 0); // Optional
+			for (uint32_t h = num_hosts-num_infectable; h < num_hosts; h++)
+			{
+				//host[i] are infectable hosts - set those blue
+				if(a == hosts[h])
+				{
+					//this host infectable
+					anim.UpdateNodeColor (dept1_nodes[i].Get(j), 0, 255, 0); // blue - infectable
+					cout << a << " infected!" << endl;
+					break;
+				}
+				else
+				{
+					anim.UpdateNodeColor (dept1_nodes[i].Get(j), 255, 0, 0); // red - uninfectable
+				}
+			}
+			//anim.UpdateNodeColor (dept1_nodes[i].Get(j), 255, 0, 0); // Optional
 			anim.SetConstantPosition (dept1_nodes[i].Get(j), z2, 200);
 			z2+=10;
 			a++;
-    		for(uint32_t k = 0; k < dept2_nodes[next+j].GetN(); k++)
+    		for(uint32_t k = 0; k < dept2_nodes[j_interval+j].GetN(); k++)
     		{
 				char buffer3[255];
 				sprintf(buffer3, "%d", a);
-				anim.UpdateNodeDescription (dept2_nodes[next+j].Get(k), buffer3); // Optional
-				anim.UpdateNodeColor (dept2_nodes[next+j].Get(k), 255, 0, 0); // Optional
-				anim.SetConstantPosition (dept2_nodes[next+j].Get(k), z3, 300);
+				anim.UpdateNodeDescription (dept2_nodes[j_interval+j].Get(k), buffer3); // Optional
+				for (uint32_t h = num_hosts-num_infectable; h < num_hosts; h++)
+				{
+					//host[i] are infectable hosts - set those blue
+					if(a == hosts[h])
+					{
+						//this host infectable
+						anim.UpdateNodeColor (dept2_nodes[j_interval+j].Get(k), 0, 255, 0); // blue - infectable
+						cout << a << " infected!" << endl;
+						break;
+					}
+					else
+					{
+						anim.UpdateNodeColor (dept2_nodes[j_interval+j].Get(k), 255, 0, 0); // red - uninfectable
+					}
+				}
+				//anim.UpdateNodeColor (dept2_nodes[next+j].Get(k), 255, 0, 0); // Optional
+				anim.SetConstantPosition (dept2_nodes[j_interval+j].Get(k), z3, 300);
 				z3+=10;
 				a++;
     		}
     	}	
-    	next += dept1_nodes[i].GetN();
+    	j_interval += dept1_nodes[i].GetN();
     }
 
 }
