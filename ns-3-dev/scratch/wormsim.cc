@@ -56,32 +56,59 @@ int main(int argc, char* argv[])
 	//printf("here1\n");
 	//create 2 nodes for dept 1 for now...can be changed later as user defined
 	uint32_t num_hosts = 1;
-	vector<NodeContainer> dept1_nodes(2);
+	vector<NodeContainer> dept1_nodes(num_root_childs);
+	//that says make room for num_root_childs in that vector - set by user
 	vector<NodeContainer> dept2_nodes;
-	//printf("here1\n");
+	//going to populate the node containers
+	//the num_root_childs is the number of children directly from the root node
+	//so start iterating from those nodes 
 	for (uint32_t i = 0; i < num_root_childs; ++i)
 	{
-			//printf("here2\n");
+		//simple count to find total number of hosts
 		num_hosts++;
+		//for each of these nodes we are going to spawn their children
+		//the fandout dept is an indication of how many children nodes specified
+		//by the user - fanoutdept1 is simply how many child nodes to spwn in 
+		//next zone
+		//so iterate through that many times to create that many nodes
 		for (uint32_t j = 0; j < fanoutdept1; ++j)
 		{
-			//printf("here3\n");
+			//this is how I generate the random value, based on the probability
+			//set by the user, to determine if to create this nodecontainer/not
 			double uv1 = uv->GetValue() ;
-			//printf("here7\n");
+			//if the random value (0,1) is less than the probability specified
+			//then go ahead and spawn that nodecontainer
 			if (uv1 <= prob)	// this is probability of child creation
 			{
-				// Create a fanout node for this tree
+				// Create a fanout node for this zone
+				//here I access the vector of zone 1 nodecontainers and create 
+				//a node inside the ith container of the zone 1
 				dept1_nodes[i].Create(1);
+				//for each zone 1 node you create, there has to be a zone 2 
+				//container to represent it, hence the next thing is to add containers
+				//to the dept2 zone vector correspondingly
 				dept2_nodes.push_back(NodeContainer ());
+				//another simple way to keep track of all the hosts we have created
 				num_hosts++;
+				//now, for each of the nodes created in this zone 1, we have to 
+				//create their children nodes, also determined by another fanout
+				//vairiable user defined -fanoutdept2
+				//so for each node in zone 1 created, create its children
 				for (uint32_t k = 0; k < fanoutdept2; ++k)
 				{
-					//printf("here4\n");
+					//yet again determine if we are going to create this child
+					//based on the probability defined - read above
 					double uv2 = uv-> GetValue();
 					if (uv2 <= prob)
 					{
-						// Create a fanout node for this fanout node
+						//remember above where we created a corresponding node
+						//container for each zone 1 node, well here is where we
+						//create nodes for each of those containers, to represent
+						//the children of the nodes created in zone 1
+						// hence the zone 2 children - dept 2 nodes
 						dept2_nodes[dept2_nodes.size()-1].Create(1);
+						//another simple increase in hosts count after we create
+						//a node
 						num_hosts++;
 					}
 				}
@@ -91,10 +118,6 @@ int main(int argc, char* argv[])
 	}
 
 	//create array of all hosts and find which hosts will be infectable
-
-	 	// CAYLEN
-	//int num_hosts = 10; // Number of hosts
-	//double infectablePer = 0.45; // Fraction of hosts that are infectable
 
 	uint32_t num_infectable = infectper * num_hosts; // Number of infectable hosts
 	cout << "number of hosts = " << num_hosts << endl;
@@ -127,21 +150,31 @@ int main(int argc, char* argv[])
 	cout << endl;
 
 	// create topology
+	
+	//now we put everything together and link them up
 
-	//printf("here1\n");
-	NodeContainer topology;
-	NodeContainer d1_nodes;
-	topology.Create(1);	//root
+	NodeContainer topology;	//main topology - everything connected to this
+	NodeContainer d1_nodes;	//the dept 1 nodes
+	//those will be connected to the root node
+	topology.Create(1);	//create root node now
 	d1_nodes.Create(num_root_childs);	//user defined
+	//append the dept1 nodes to root
 	topology.Add(d1_nodes);
 	for(uint32_t x = 0; x < num_root_childs; x++)
 	{
+		//remember above we created a vector of dept1 node containers
+		//now we add the all nodes from each container to dept 1 nodes created
 		topology.Add(dept1_nodes[x]);
 	}
 	for(uint32_t x = 0; x < dept2_nodes.size(); x++)
 	{
+		//similarly, to each of the nodes added to the dept 1 nodes above, we add
+		//their children to each of them
 		topology.Add(dept2_nodes[x]);
 	}
+	
+	//the nodes are added now, but not linked into the tree  as we are picturing
+	// we now make the final p2p links and create our desired tree like structure
 
 	// Install nodes on internet stack.
 	InternetStackHelper stack;
@@ -164,27 +197,39 @@ int main(int argc, char* argv[])
 	vector<NetDeviceContainer> d2devices;
 
 	//now to install the p2ps and devices
-
+	//here is where all the magic happens
+	
+	// j_int is simply used to keep a counter on the j iteration to prevent 
+	// overlapping when connecting the zone 2 nodes to their parent zone 1 nodes
 	uint32_t j_int = 0;
 	for (uint32_t i = 0; i < num_root_childs; ++i)
 	{
-		// Connect the root node to each tree node
+		// Connect the root node to zone 1 nodes
 		topdevices[i] = topp2p.Install (topology.Get(0), d1_nodes.Get(i));
 
 		for (uint32_t j = 0; j < dept1_nodes[i].GetN(); ++j)
 		{
-			// Connect each tree node to its fanout nodes
-			d1devices.push_back (d1p2p.Install (d1_nodes.Get(i),
-			                                         dept1_nodes[i].Get(j)));
+			// Connect zone 1 nodes to it's children in dept 1 nodeContainers
+			d1devices.push_back (d1p2p.Install (d1_nodes.Get(i), dept1_nodes[i].Get(j)));
 
 			for (uint32_t k = 0; k < dept2_nodes[j_int+j].GetN(); ++k)
 			{
-		  		d2devices.push_back (d2p2p.Install (dept1_nodes[i].Get(j),
-		  									dept2_nodes[j_int+j].Get(k)));
+				//connect dept 1 nodes to its children in dept 2 nodeContainers
+				// dont get confused with the j_int, its a simple way to keep 
+				// of where the j iteration left when assigning the dept 2 
+				// children to its parents
+		  		d2devices.push_back (d2p2p.Install (dept1_nodes[i].Get(j), dept2_nodes[j_int+j].Get(k)));
 			}
 		}
 		j_int += dept1_nodes[i].GetN();
 	}
+	
+	//alright, thats it, the tree is complete
+	//the next step is assigning the ip addresses to each node
+	//I tried to give each level in the tree its own unique way of assigning
+	//thier level IPs but if you followed how I iterated through the tree in the
+	//previous 2 iterations above, then its the same iteration here
+	//so you all can assign the IPs as you see best suited for the worm app
 
 	// Assign IP addresses
 	ostringstream ostr;
@@ -226,6 +271,9 @@ int main(int argc, char* argv[])
 	Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
 	//shit for netanim...
+	//here is the same as above in terms of iterating the levels in the tree
+	//all I do extra is based on the hosts list create by Caylen, I changed the
+	//node colors correspondingly
 
 	MobilityHelper mobility;
   	mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
